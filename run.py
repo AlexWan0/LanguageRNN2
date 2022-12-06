@@ -4,6 +4,9 @@ os.environ["device"] = 'cpu'
 
 device = os.environ.get('device', 'cpu')
 
+import sys
+sys.path.append('src/')
+
 # random seed setup
 SEED = 0
 
@@ -27,11 +30,11 @@ from torch import nn
 from tqdm.auto import tqdm
 
 sit2id, sid2uids, train_sit_id, valid_sit_id, situations, utterances = build_data(
-	id_pairs='id_pairs_2.txt',
-    situations='situations_2.txt',
-    utterances='utterances_2.txt',
-    training_set='training_set.txt',
-    test_set='test_set.txt'
+	id_pairs='data/id_pairs_2.txt',
+    situations='data/situations_2.txt',
+    utterances='data/utterances_2.txt',
+    training_set='data/training_set.txt',
+    test_set='data/test_set.txt'
 )
 
 v1, v2, eos_id, start_id = build_vocab(situations, utterances)
