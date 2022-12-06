@@ -2,6 +2,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--cuda', help='Set device to cuda', action='store_true')
+parser.add_argument('--do_sampling', help='Use sampling', action='store_true')
 args = parser.parse_args()
 
 # environment setup
@@ -58,8 +59,6 @@ model_forward = wrap_forward(enc, dec, start_id, eos_id)
 
 train_loss_run = RunningAvg(10)
 plot = Plotter()
-
-run_sampling = True
 
 run_sampling = build_sampling(
     enc,
@@ -123,7 +122,7 @@ for iter_idx, sit_id in enumerate(pbar):
             figsize=(15, 10)
         )
     
-    if iter_idx % 500 == 0 and iter_idx != 0 and run_sampling:        
+    if iter_idx % 500 == 0 and iter_idx != 0 and args.do_sampling:        
         print('START SAMPLING:')
         sampling_ids = random.sample(train_sit_id, 100)
         for sampling_iter_idx, sit_id in enumerate(tqdm(sampling_ids)):
