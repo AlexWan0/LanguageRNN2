@@ -30,7 +30,7 @@ from torch import nn
 from tqdm.auto import tqdm
 
 sit2id, sid2uids, train_sit_id, valid_sit_id, situations, utterances = build_data(
-	id_pairs='data/id_pairs_2.txt',
+    id_pairs='data/id_pairs_2.txt',
     situations='data/situations_2.txt',
     utterances='data/utterances_2.txt',
     training_set='data/training_set.txt',
@@ -81,12 +81,12 @@ for iter_idx, sit_id in enumerate(pbar):
     tu_target = v2.tokenize(tu)
     
     pred_ids, loss, logits_all = model_forward(
-    	input_sit.to(device),
-    	force=True,
-    	sample=False,
-    	tu_target=tu_target.to(device),
-    	loss_func=ce_loss,
-    	gen_length=None
+        input_sit.to(device),
+        force=True,
+        sample=False,
+        tu_target=tu_target.to(device),
+        loss_func=ce_loss,
+        gen_length=None
     )
     
     cleaned_pred = ' '.join(v2.decode(pred_ids)).replace('!', '').strip()
@@ -108,7 +108,7 @@ for iter_idx, sit_id in enumerate(pbar):
         if pbar.format_dict['rate'] != None:
             eta = (pbar.format_dict['total'] - iter_idx) / pbar.format_dict['rate']
         plot.output(
-        	suptitle=(cleaned_pred + " | " + tu.replace('!', '').strip() + " | " + str(eta)),
+            suptitle=(cleaned_pred + " | " + tu.replace('!', '').strip() + " | " + str(eta)),
             subplots=(3, 3),
             figsize=(15, 10)
         )
@@ -166,7 +166,7 @@ for iter_idx, sit_id in enumerate(pbar):
             
             with torch.no_grad():
                 pred_ids, _, logits_all = model_forward(
-                	input_sit.to(device),
+                    input_sit.to(device),
                     force=False,
                     sample=False,
                     tu_target=None,
