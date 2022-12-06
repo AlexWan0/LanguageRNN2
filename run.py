@@ -52,7 +52,7 @@ plot = Plotter()
 run_sampling = True
 
 run_sampling = build_sampling(
-	enc,
+    enc,
     dec,
     v2,
     start_id,
