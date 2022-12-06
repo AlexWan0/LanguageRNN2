@@ -4,6 +4,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--cuda', help='Set device to cuda', action='store_true', default=False)
 parser.add_argument('--do_sampling', help='Use sampling', action='store_true', default=False)
 parser.add_argument('--do_property', help='Get property accuracy', action='store_true', default=False)
+parser.add_argument('--epochs', type=int, help='Number of epochs', default=1)
+parser.add_argument('--limit_iter', type=int, help='Stop each epoch early', default=None)
+
 args = parser.parse_args()
 
 # environment setup
@@ -79,143 +82,149 @@ plot = Plotter()
 
 ce_loss = nn.CrossEntropyLoss()
 
-random.shuffle(train_sit_id)
-pbar = tqdm(train_sit_id)
+for epoch_idx in range(args.epochs):
+    print('STARTING EPOCH %d' % (epoch_idx + 1))
 
-num_correct = 0
+    random.shuffle(train_sit_id)
+    pbar = tqdm(train_sit_id, total=min(args.limit_iter, len(train_sit_id)))
 
-for iter_idx, sit_id in enumerate(pbar):
-    utter_ids = sid2uids[sit_id]
-    
-    target_utters = id_select(utter_ids, utterances)
-    
-    input_sit_str = '^ ' + id_select([sit_id], situations)[0] + ' !'
-    input_sit = v1.tokenize(input_sit_str)
-    
-    tu = random.choice(target_utters) + ' !'
-    tu_target = v2.tokenize(tu)
-    
-    pred_ids, loss, logits_all = model_forward(
-        input_sit.to(device),
-        force=True,
-        sample=False,
-        tu_target=tu_target.to(device),
-        loss_func=ce_loss,
-        gen_length=None
-    )
-    
-    cleaned_pred = ' '.join(v2.decode(pred_ids)).replace('!', '').strip()
-    
-    if cleaned_pred in target_utters:
-        num_correct += 1
-    
-    loss.backward()
-    opt_dec.step()
-    opt_enc.step()
-    
-    opt_dec.zero_grad()
-    opt_enc.zero_grad()
-    
-    plot.add(loss = train_loss_run(loss.item()/len(pred_ids)), accuracy = num_correct/(iter_idx + 1))
+    num_correct = 0
 
-    if iter_idx % 500 == 0 and iter_idx != 0 and args.do_sampling:        
-        print('START SAMPLING:')
-        sampling_ids = random.sample(train_sit_id, 100)
-        for sampling_iter_idx, sit_id in enumerate(tqdm(sampling_ids)):
-            utter_ids = sid2uids[sit_id]
-    
-            target_utters = id_select(utter_ids, utterances)
+    for iter_idx, sit_id in enumerate(pbar):
+        if args.limit_iter is not None and iter_idx >= args.limit_iter:
+            break
 
-            input_sit_str = '^ ' + id_select([sit_id], situations)[0] + ' !'
-            input_sit = v1.tokenize(input_sit_str)
-            
-            '''comp_1 = beam_completeness(
-                target_utters,
-                input_sit,
-                enc,
-                dec,
-                v2,
-                start_id,
-                eos_id,
-                verbose=False
-            )'''
-            #print('%d: PRE COMPLETENESS SINGLE SAMPLE: %.2f' % (sampling_iter_idx, comp_1))
-
-            run_sampling(input_sit.to(device), target_utters, num_samples=100)
-
-            '''comp_2 = beam_completeness(
-                target_utters,
-                input_sit,
-                enc,
-                dec,
-                v2,
-                start_id,
-                eos_id,
-                verbose=False
-            )'''
-            #print('%d: POST COMPLETENESS SINGLE SAMPLE: %.2f' % (sampling_iter_idx, comp_2))
-    
-    if iter_idx % 500 == 0 and iter_idx != 0 and args.do_property:
-        compare_results = test_compare()
-        for prop, prop_acc in compare_results.items():
-            plot_kwargs = {}
-            plot_kwargs[prop] = prop_acc
-            plot.add(**plot_kwargs)
-
-    if iter_idx % 500 == 0 and iter_idx != 0:
-        avg_valid_accuracy = 0.0
-        avg_valid_completeness = 0.0
+        utter_ids = sid2uids[sit_id]
         
-        print('START VALIDATION:')
+        target_utters = id_select(utter_ids, utterances)
         
-        for v_iter_idx, sit_id in enumerate(tqdm(valid_sit_id)):
-            utter_ids = sid2uids[sit_id]
-            
-            target_utters = id_select(utter_ids, utterances)
-            
-            input_sit_str = '^ ' + id_select([sit_id], situations)[0] + ' !'
-            input_sit = v1.tokenize(input_sit_str)
-            
-            with torch.no_grad():
-                pred_ids, _, logits_all = model_forward(
-                    input_sit.to(device),
-                    force=False,
-                    sample=False,
-                    tu_target=None,
-                    loss_func=None,
-                    gen_length=13
-                )
-            
-            cleaned_pred = ' '.join(v2.decode(pred_ids)).replace('!', '').strip()
-            
-            if cleaned_pred in target_utters:
-                avg_valid_accuracy += 1
-            
-            if v_iter_idx < 100:
-                comp = beam_completeness(
+        input_sit_str = '^ ' + id_select([sit_id], situations)[0] + ' !'
+        input_sit = v1.tokenize(input_sit_str)
+        
+        tu = random.choice(target_utters) + ' !'
+        tu_target = v2.tokenize(tu)
+        
+        pred_ids, loss, logits_all = model_forward(
+            input_sit.to(device),
+            force=True,
+            sample=False,
+            tu_target=tu_target.to(device),
+            loss_func=ce_loss,
+            gen_length=None
+        )
+        
+        cleaned_pred = ' '.join(v2.decode(pred_ids)).replace('!', '').strip()
+        
+        if cleaned_pred in target_utters:
+            num_correct += 1
+        
+        loss.backward()
+        opt_dec.step()
+        opt_enc.step()
+        
+        opt_dec.zero_grad()
+        opt_enc.zero_grad()
+        
+        plot.add(loss = train_loss_run(loss.item()/len(pred_ids)), accuracy = num_correct/(iter_idx + 1))
+
+        if iter_idx % 500 == 0 and iter_idx != 0 and args.do_sampling:        
+            print('START SAMPLING:')
+            sampling_ids = random.sample(train_sit_id, 100)
+            for sampling_iter_idx, sit_id in enumerate(tqdm(sampling_ids)):
+                utter_ids = sid2uids[sit_id]
+        
+                target_utters = id_select(utter_ids, utterances)
+
+                input_sit_str = '^ ' + id_select([sit_id], situations)[0] + ' !'
+                input_sit = v1.tokenize(input_sit_str)
+                
+                '''comp_1 = beam_completeness(
                     target_utters,
-                    input_sit.to(device),
+                    input_sit,
                     enc,
                     dec,
                     v2,
                     start_id,
                     eos_id,
                     verbose=False
-                )
+                )'''
+                #print('%d: PRE COMPLETENESS SINGLE SAMPLE: %.2f' % (sampling_iter_idx, comp_1))
 
-                avg_valid_completeness += comp
-        
-        avg_valid_accuracy /= len(valid_sit_id)
-        avg_valid_completeness /= 100
-        
-        plot.add(valid_accuracy=avg_valid_accuracy, valid_completeness=avg_valid_completeness)
+                run_sampling(input_sit.to(device), target_utters, num_samples=100)
 
-    if iter_idx % 500 == 0:
-        eta = ''
-        if pbar.format_dict['rate'] != None:
-            eta = (pbar.format_dict['total'] - iter_idx) / pbar.format_dict['rate']
-        plot.output(
-            suptitle=(cleaned_pred + " | " + tu.replace('!', '').strip() + " | " + str(eta)),
-            subplots=(3, 3),
-            figsize=(15, 10)
-        )
+                '''comp_2 = beam_completeness(
+                    target_utters,
+                    input_sit,
+                    enc,
+                    dec,
+                    v2,
+                    start_id,
+                    eos_id,
+                    verbose=False
+                )'''
+                #print('%d: POST COMPLETENESS SINGLE SAMPLE: %.2f' % (sampling_iter_idx, comp_2))
+        
+        if iter_idx % 500 == 0 and iter_idx != 0 and args.do_property:
+            compare_results = test_compare()
+            for prop, prop_acc in compare_results.items():
+                plot_kwargs = {}
+                plot_kwargs[prop] = prop_acc
+                plot.add(**plot_kwargs)
+
+        if iter_idx % 500 == 0 and iter_idx != 0:
+            avg_valid_accuracy = 0.0
+            avg_valid_completeness = 0.0
+            
+            print('START VALIDATION:')
+            
+            for v_iter_idx, sit_id in enumerate(tqdm(valid_sit_id)):
+                utter_ids = sid2uids[sit_id]
+                
+                target_utters = id_select(utter_ids, utterances)
+                
+                input_sit_str = '^ ' + id_select([sit_id], situations)[0] + ' !'
+                input_sit = v1.tokenize(input_sit_str)
+                
+                with torch.no_grad():
+                    pred_ids, _, logits_all = model_forward(
+                        input_sit.to(device),
+                        force=False,
+                        sample=False,
+                        tu_target=None,
+                        loss_func=None,
+                        gen_length=13
+                    )
+                
+                cleaned_pred = ' '.join(v2.decode(pred_ids)).replace('!', '').strip()
+                
+                if cleaned_pred in target_utters:
+                    avg_valid_accuracy += 1
+                
+                if v_iter_idx < 100:
+                    comp = beam_completeness(
+                        target_utters,
+                        input_sit.to(device),
+                        enc,
+                        dec,
+                        v2,
+                        start_id,
+                        eos_id,
+                        verbose=False
+                    )
+
+                    avg_valid_completeness += comp
+            
+            avg_valid_accuracy /= len(valid_sit_id)
+            avg_valid_completeness /= 100
+            
+            plot.add(valid_accuracy=avg_valid_accuracy, valid_completeness=avg_valid_completeness)
+
+        if iter_idx % 500 == 0:
+            eta = ''
+            if pbar.format_dict['rate'] != None:
+                eta = (pbar.format_dict['total'] - iter_idx) / pbar.format_dict['rate']
+            plot.output(
+                suptitle=(cleaned_pred + " | " + tu.replace('!', '').strip() + " | " + str(eta)),
+                subplots=(3, 3),
+                figsize=(15, 10)
+            )

@@ -20,7 +20,7 @@ def test_sentence(input_sit, tu_target_compare, model_forward):
                 input_sit.to(device),
                 force=True,
                 sample=False,
-                tu_target=tu_target,
+                tu_target=tu_target.to(device),
                 loss_func=ce_loss,
                 gen_length=None
             )
