@@ -1,8 +1,9 @@
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--cuda', help='Set device to cuda', action='store_true')
-parser.add_argument('--do_sampling', help='Use sampling', action='store_true')
+parser.add_argument('--cuda', help='Set device to cuda', action='store_true', default=False)
+parser.add_argument('--do_sampling', help='Use sampling', action='store_true', default=False)
+parser.add_argument('--do_property', help='Get property accuracy', action='store_true', default=False)
 args = parser.parse_args()
 
 # environment setup
@@ -39,6 +40,7 @@ from completeness import beam_completeness
 from sampling import build_sampling
 from torch import nn
 from tqdm.auto import tqdm
+from comparative import build_comparator
 
 sit2id, sid2uids, train_sit_id, valid_sit_id, situations, utterances = build_data(
     id_pairs='data/id_pairs_2.txt',
@@ -57,19 +59,23 @@ dec = dec.to(device)
 
 model_forward = wrap_forward(enc, dec, start_id, eos_id)
 
+if args.do_property:
+    test_compare = build_comparator(v1, v2, model_forward, 'data/')
+
+if args.do_sampling:
+    run_sampling = build_sampling(
+        enc,
+        dec,
+        v2,
+        start_id,
+        eos_id,
+        lr=1e-5,
+        temperature=1.0,
+        gen_length=13
+    )
+
 train_loss_run = RunningAvg(10)
 plot = Plotter()
-
-run_sampling = build_sampling(
-    enc,
-    dec,
-    v2,
-    start_id,
-    eos_id,
-    lr=1e-5,
-    temperature=1.0,
-    gen_length=13
-)
 
 ce_loss = nn.CrossEntropyLoss()
 
@@ -111,17 +117,7 @@ for iter_idx, sit_id in enumerate(pbar):
     opt_enc.zero_grad()
     
     plot.add(loss = train_loss_run(loss.item()/len(pred_ids)), accuracy = num_correct/(iter_idx + 1))
-    
-    if iter_idx % 500 == 0:
-        eta = ''
-        if pbar.format_dict['rate'] != None:
-            eta = (pbar.format_dict['total'] - iter_idx) / pbar.format_dict['rate']
-        plot.output(
-            suptitle=(cleaned_pred + " | " + tu.replace('!', '').strip() + " | " + str(eta)),
-            subplots=(3, 3),
-            figsize=(15, 10)
-        )
-    
+
     if iter_idx % 500 == 0 and iter_idx != 0 and args.do_sampling:        
         print('START SAMPLING:')
         sampling_ids = random.sample(train_sit_id, 100)
@@ -159,6 +155,13 @@ for iter_idx, sit_id in enumerate(pbar):
             )'''
             #print('%d: POST COMPLETENESS SINGLE SAMPLE: %.2f' % (sampling_iter_idx, comp_2))
     
+    if iter_idx % 500 == 0 and iter_idx != 0 and args.do_property:
+        compare_results = test_compare()
+        for prop, prop_acc in compare_results.items():
+            plot_kwargs = {}
+            plot_kwargs[prop] = prop_acc
+            plot.add(**plot_kwargs)
+
     if iter_idx % 500 == 0 and iter_idx != 0:
         avg_valid_accuracy = 0.0
         avg_valid_completeness = 0.0
@@ -206,3 +209,13 @@ for iter_idx, sit_id in enumerate(pbar):
         avg_valid_completeness /= 100
         
         plot.add(valid_accuracy=avg_valid_accuracy, valid_completeness=avg_valid_completeness)
+
+    if iter_idx % 500 == 0:
+        eta = ''
+        if pbar.format_dict['rate'] != None:
+            eta = (pbar.format_dict['total'] - iter_idx) / pbar.format_dict['rate']
+        plot.output(
+            suptitle=(cleaned_pred + " | " + tu.replace('!', '').strip() + " | " + str(eta)),
+            subplots=(3, 3),
+            figsize=(15, 10)
+        )
