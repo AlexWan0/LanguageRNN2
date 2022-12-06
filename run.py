@@ -86,7 +86,11 @@ for epoch_idx in range(args.epochs):
     print('STARTING EPOCH %d' % (epoch_idx + 1))
 
     random.shuffle(train_sit_id)
-    pbar = tqdm(train_sit_id, total=min(args.limit_iter, len(train_sit_id)))
+
+    if args.limit_iter is not None:
+        pbar = tqdm(train_sit_id, total=min(args.limit_iter, len(train_sit_id)))
+    else:
+        pbar = tqdm(train_sit_id)
 
     num_correct = 0
 
