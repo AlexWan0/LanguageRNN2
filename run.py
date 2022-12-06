@@ -1,7 +1,7 @@
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('cuda', help='Set device to cuda', action='store_true')
+parser.add_argument('--cuda', help='Set device to cuda', action='store_true')
 args = parser.parse_args()
 
 # environment setup
