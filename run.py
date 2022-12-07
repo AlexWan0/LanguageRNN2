@@ -5,11 +5,27 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, help='Model to use', choices=['random', 'max', 'feedback', 'closest'], required=True)
 
 parser.add_argument('--cuda', help='Set device to cuda', action='store_true', default=False)
+
+# sampling configs
 parser.add_argument('--do_sampling', help='Use sampling', action='store_true', default=False)
+parser.add_argument('--sampling_interval', type=int, help='Do sampling every x iterations', default=500)
+parser.add_argument('--sampling_iterations', type=int, help='Number of iterations to sample', default=100)
+parser.add_argument('--num_samples', type=int, help='Amount of training data to sampling over', default=100)
+
+# property configs
 parser.add_argument('--do_property', help='Get property accuracy', action='store_true', default=False)
+parser.add_argument('--property_interval', help='Do property evaluation every x iterations', default=500)
+
+# validation configs
+parser.add_argument('--valid_completeness_iters', type=int, help='Number of validation samples to use when calculating completeness.', default=100)
+parser.add_argument('--validation_interval', help='Do validation every x iterations', default=500)
+
+# plot configs
+parser.add_argument('--plot_fp', type=str, help='File path of plot output.', default='results.png')
+parser.add_argument('--plot_interval', type=int, help='Output plot every x iterations', default=500)
+
 parser.add_argument('--epochs', type=int, help='Number of epochs', default=1)
 parser.add_argument('--limit_iter', type=int, help='Stop each epoch early', default=None)
-parser.add_argument('--valid_completeness_iters', type=int, help='Number of validation samples to use when calculating completeness.', default=100)
 
 args = parser.parse_args()
 
@@ -159,9 +175,9 @@ for epoch_idx in range(args.epochs):
             accuracy_run = train_acc_run(1 if cleaned_pred in target_utters else 0)
         )
 
-        if iter_idx % 500 == 0 and iter_idx != 0 and args.do_sampling:        
+        if iter_idx % args.sampling_interval == 0 and iter_idx != 0 and args.do_sampling:        
             print('START SAMPLING:')
-            sampling_ids = random.sample(train_sit_id, 100)
+            sampling_ids = random.sample(train_sit_id, args.num_samples)
             for sampling_iter_idx, sit_id in enumerate(tqdm(sampling_ids)):
                 utter_ids = sid2uids[sit_id]
         
@@ -182,7 +198,7 @@ for epoch_idx in range(args.epochs):
                 )'''
                 #print('%d: PRE COMPLETENESS SINGLE SAMPLE: %.2f' % (sampling_iter_idx, comp_1))
 
-                run_sampling(input_sit.to(device), target_utters, num_samples=100)
+                run_sampling(input_sit.to(device), target_utters, num_samples=args.sampling_iterations)
 
                 '''comp_2 = beam_completeness(
                     target_utters,
@@ -196,14 +212,14 @@ for epoch_idx in range(args.epochs):
                 )'''
                 #print('%d: POST COMPLETENESS SINGLE SAMPLE: %.2f' % (sampling_iter_idx, comp_2))
         
-        if iter_idx % 500 == 0 and iter_idx != 0 and args.do_property:
+        if iter_idx % args.property_interval == 0 and iter_idx != 0 and args.do_property:
             compare_results = test_compare()
             for prop, prop_acc in compare_results.items():
                 plot_kwargs = {}
                 plot_kwargs[prop] = prop_acc
                 plot.add(**plot_kwargs)
 
-        if iter_idx % 500 == 0 and iter_idx != 0:
+        if iter_idx % args.validation_interval == 0 and iter_idx != 0:
             avg_valid_accuracy = 0.0
             avg_valid_completeness = 0.0
             
@@ -251,11 +267,12 @@ for epoch_idx in range(args.epochs):
             
             plot.add(valid_accuracy=avg_valid_accuracy, valid_completeness=avg_valid_completeness)
 
-        if iter_idx % 500 == 0:
+        if iter_idx % args.plot_interval == 0:
             eta = ''
             if pbar.format_dict['rate'] != None:
                 eta = (pbar.format_dict['total'] - iter_idx) / pbar.format_dict['rate']
             plot.output(
+                fp=args.plot_fp,
                 suptitle=(cleaned_pred + " | " + tu.replace('!', '').strip() + " | " + str(eta)),
                 subplots=(3, 3),
                 figsize=(15, 10)
