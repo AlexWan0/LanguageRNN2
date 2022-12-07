@@ -29,7 +29,14 @@ parser.add_argument('--limit_iter', type=int, help='Stop each epoch early', defa
 
 parser.add_argument('--log_file', type=str, help='Log generations', default=None, required=False)
 parser.add_argument('--log_interval', type=int, help='Output to log file every x iterations', default=100, required=False)
+
+# train configs
+parser.add_argument("--train_lr", type=float, help='Regular training learning rate', default=5e-4, required=False)
+
 args = parser.parse_args()
+
+# https://stackoverflow.com/questions/34992524/print-command-line-arguments-with-argparse
+print(' '.join(f'{k}={v}' for k, v in vars(args).items()))
 
 # environment setup
 import os
@@ -78,7 +85,7 @@ sit2id, sid2uids, train_sit_id, valid_sit_id, situations, utterances = build_dat
 
 v1, v2, eos_id, start_id = build_vocab(situations, utterances)
 
-(enc, opt_enc), (dec, opt_dec) = build_model(v1, v2, enc_lr=5e-4, dec_lr=5e-4)
+(enc, opt_enc), (dec, opt_dec) = build_model(v1, v2, enc_lr=args.train_lr, dec_lr=args.train_lr)
 
 enc = enc.to(device)
 dec = dec.to(device)
