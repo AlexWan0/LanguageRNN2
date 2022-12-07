@@ -1,11 +1,15 @@
 import argparse
 
 parser = argparse.ArgumentParser()
+
+parser.add_argument('--model', type=str, help='Model to use', choices=['random', 'max', 'feedback', 'closest'], required=True)
+
 parser.add_argument('--cuda', help='Set device to cuda', action='store_true', default=False)
 parser.add_argument('--do_sampling', help='Use sampling', action='store_true', default=False)
 parser.add_argument('--do_property', help='Get property accuracy', action='store_true', default=False)
 parser.add_argument('--epochs', type=int, help='Number of epochs', default=1)
 parser.add_argument('--limit_iter', type=int, help='Stop each epoch early', default=None)
+parser.add_argument('--valid_completeness_iters', type=int, help='Number of validation samples to use when calculating completeness.', default=100)
 
 args = parser.parse_args()
 
@@ -44,6 +48,7 @@ from sampling import build_sampling
 from torch import nn
 from tqdm.auto import tqdm
 from comparative import build_comparator
+from feedback import feedback_double_forward, feedback_single_forward
 
 sit2id, sid2uids, train_sit_id, valid_sit_id, situations, utterances = build_data(
     id_pairs='data/id_pairs_2.txt',
@@ -77,7 +82,8 @@ if args.do_sampling:
         gen_length=13
     )
 
-train_loss_run = RunningAvg(10)
+train_loss_run = RunningAvg(20)
+train_acc_run = RunningAvg(20)
 plot = Plotter()
 
 ce_loss = nn.CrossEntropyLoss()
@@ -105,7 +111,26 @@ for epoch_idx in range(args.epochs):
         input_sit_str = '^ ' + id_select([sit_id], situations)[0] + ' !'
         input_sit = v1.tokenize(input_sit_str)
         
-        tu = random.choice(target_utters) + ' !'
+        # generate feedback based on setting
+        if args.model in feedback_double_forward:
+            with torch.no_grad():
+                pred_ids_feedback, _, _ = model_forward(
+                    input_sit.to(device),
+                    force=False,
+                    sample=False,
+                    tu_target=None,
+                    loss_func=None,
+                    gen_length=13
+                )
+
+            cleaned_pred_feedback = ' '.join(v2.decode(pred_ids_feedback)).replace('!', '').strip()
+
+            tu = feedback_double_forward[args.model](cleaned_pred_feedback, target_utters)
+        else:
+            tu = feedback_single_forward[args.model](target_utters)
+
+        assert tu[-1] == '!', 'Feedback doesn\'t end with EOS token'
+
         tu_target = v2.tokenize(tu)
         
         pred_ids, loss, logits_all = model_forward(
@@ -129,7 +154,10 @@ for epoch_idx in range(args.epochs):
         opt_dec.zero_grad()
         opt_enc.zero_grad()
         
-        plot.add(loss = train_loss_run(loss.item()/len(pred_ids)), accuracy = num_correct/(iter_idx + 1))
+        plot.add(
+            loss = train_loss_run(loss.item()/len(pred_ids)),
+            accuracy_run = train_acc_run(1 if cleaned_pred in target_utters else 0)
+        )
 
         if iter_idx % 500 == 0 and iter_idx != 0 and args.do_sampling:        
             print('START SAMPLING:')
@@ -204,7 +232,7 @@ for epoch_idx in range(args.epochs):
                 if cleaned_pred in target_utters:
                     avg_valid_accuracy += 1
                 
-                if v_iter_idx < 100:
+                if v_iter_idx < args.valid_completeness_iters:
                     comp = beam_completeness(
                         target_utters,
                         input_sit.to(device),
@@ -219,7 +247,7 @@ for epoch_idx in range(args.epochs):
                     avg_valid_completeness += comp
             
             avg_valid_accuracy /= len(valid_sit_id)
-            avg_valid_completeness /= 100
+            avg_valid_completeness /= args.valid_completeness_iters
             
             plot.add(valid_accuracy=avg_valid_accuracy, valid_completeness=avg_valid_completeness)
 

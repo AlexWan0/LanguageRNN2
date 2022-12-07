@@ -107,16 +107,16 @@ def model_forward(enc,
     enc_out, enc_hidden = enc(input_sit)
 
     # if generation length is None, the generation length is set to the gt length
-    assert gen_length is not None or tu_target is not None
+    assert gen_length is not None or tu_target is not None, 'gen_length = None requires a ground truth to get generation length.'
 
     if gen_length is None:
         gen_length = len(tu_target)
 
     # can't do teacher forcing and sampling at the same time
-    assert not (force and sample)
+    assert not (force and sample), 'Can\'t do teacher forcing and sampling at the same time.'
 
     # loss function requires a gt
-    assert not (loss_func is not None and tu_target is None)
+    assert not (loss_func is not None and tu_target is None), 'Loss function requires a ground truth.'
 
     pred_ids = []
     logits_all = []
