@@ -27,6 +27,8 @@ parser.add_argument('--plot_interval', type=int, help='Output plot every x itera
 parser.add_argument('--epochs', type=int, help='Number of epochs', default=1)
 parser.add_argument('--limit_iter', type=int, help='Stop each epoch early', default=None)
 
+parser.add_argument('--log_file', type=str, help='Log generations', default=None, required=False)
+parser.add_argument('--log_interval', type=int, help='Output to log file every x iterations', default=100, required=False)
 args = parser.parse_args()
 
 # environment setup
@@ -163,6 +165,10 @@ for epoch_idx in range(args.epochs):
         if cleaned_pred in target_utters:
             num_correct += 1
         
+        if args.log_file is not None and iter_idx % args.log_interval == 0:
+            with open(args.log_file, 'a') as file_out:
+                file_out.write('TRAIN %d: PRED: %s | SIT: %s | FEEDBACK: %s\n' % (iter_idx, cleaned_pred, input_sit_str, tu))
+
         loss.backward()
         opt_dec.step()
         opt_enc.step()
@@ -245,6 +251,10 @@ for epoch_idx in range(args.epochs):
                 
                 cleaned_pred = ' '.join(v2.decode(pred_ids)).replace('!', '').strip()
                 
+                if args.log_file is not None and v_iter_idx % args.log_interval == 0:
+                    with open(args.log_file, 'a') as file_out:
+                        file_out.write('VALIDATION %d: PRED: %s| SIT: %s\n' % (v_iter_idx, cleaned_pred, input_sit_str))
+
                 if cleaned_pred in target_utters:
                     avg_valid_accuracy += 1
                 
