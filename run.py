@@ -6,6 +6,8 @@ parser.add_argument('--model', type=str, help='Model to use', choices=['random',
 
 parser.add_argument('--cuda', help='Set device to cuda', action='store_true', default=False)
 
+parser.add_argument('--seed', help='Random seed', type=int, default=0, required=False)
+
 # sampling configs
 parser.add_argument('--do_sampling', help='Use sampling', action='store_true', default=False)
 parser.add_argument('--sampling_interval', type=int, help='Do sampling every x iterations', default=500)
@@ -52,16 +54,14 @@ import sys
 sys.path.append('src/')
 
 # random seed setup
-SEED = 0
-
 import torch
-torch.manual_seed(SEED)
+torch.manual_seed(args.seed)
 
 import random
-random.seed(SEED)
+random.seed(args.seed)
 
 import numpy as np
-np.random.seed(SEED)
+np.random.seed(args.seed)
 
 from data import build_data, id_select
 from vocab import build_vocab
