@@ -65,14 +65,14 @@ class RNNDec(nn.Module):
         # x: 1
         # h: 1 x 1 x 300
         x = self.embed(x).reshape(1, -1) # 1 x 300
-        x = self.dropout(x)
+        #x = self.dropout(x)
         
         #enc_hidden = self.lin_hidden(enc_hidden)
         #enc_hidden = self.relu(enc_hidden)
         
         #print(torch.cat((x[0], enc_hidden[0]), dim=1).shape)
         
-        attn_weights = F.softmax(self.attn(torch.cat((x, enc_hidden[0]), dim=1)), dim=1) # 1 x max_length
+        attn_weights = F.softmax(self.attn(torch.cat((x, h[0]), dim=1)), dim=1) # 1 x max_length
         
         #seq_length = enc_out.shape[0]
         #attn_weights = attn_weights[:, :seq_length] # 1 x seq_length
